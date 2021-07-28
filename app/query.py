@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime
-import time
+import logging
 
 from fastapi_cache.decorator import cache
 from fastapi_cache.coder import PickleCoder
@@ -11,6 +11,8 @@ import pandas as pd
 import constants
 from .models import AnalysisQuery, QueryParams
 from .utils import redis_key_builder
+
+logger = logging.getLogger(__name__)
 
 
 async def query_prometheus(client: httpx.AsyncClient, url: str, query: dict) -> dict:
