@@ -1,12 +1,12 @@
 import warnings
 
-warnings.filterwarnings(action='ignore')
-
 import pandas as pd
 from sklearn.ensemble import IsolationForest
-
+from statsmodels.tsa.arima_model import ARIMA
 
 from constants import *
+
+warnings.filterwarnings(action='ignore')
 
 
 def forecasting(data: pd.DataFrame, value_field: str):
