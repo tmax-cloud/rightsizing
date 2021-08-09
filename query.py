@@ -42,13 +42,14 @@ async def query_and_analyze_pod(
                                   start=now, duration=constants.QUERY_TERM)
 
     result = db.query(pod_query)
-    if result.empty:
-        return None
 
     total_df = pd.DataFrame()
     for record in result:
         for key, data in record.items():
             field, _ = key.split(',')
             total_df[field] = np.array(data['mean'], dtype=np.float32)
+    if result.empty:
+        return None
+    
     total_df = total_df.fillna(method='ffill')
     return QueryParams(query=query, data=total_df)
