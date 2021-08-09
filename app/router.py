@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends
-
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend
 from fastapi_cache.coder import PickleCoder
@@ -61,7 +60,6 @@ def create_analysis_task(query: QueryParams = Depends(common_query, use_cache=Tr
     - **name**: The name of kubernetes object
     \f
     :param query: Prometheus query result DataFrame.
-    :param background_tasks: BackgroundTasks
     """
 
     data = query.scaled_data
@@ -84,6 +82,4 @@ def create_analysis_task(query: QueryParams = Depends(common_query, use_cache=Tr
 
 @router.on_event("startup")
 async def startup():
-    # redis = await aioredis.create_redis_pool("redis://localhost", encoding="utf8")
-    # FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
     FastAPICache.init(InMemoryBackend(), prefix="fastapi-cache")
