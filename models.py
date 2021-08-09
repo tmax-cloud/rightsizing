@@ -15,20 +15,15 @@ regex = re.compile('^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$')
 class AnalysisQuery(BaseModel):
     name: str = Field(..., description="The name of kubernetes object (pod)")
     namespace: Optional[str] = Field(None, example="default", description="The namespace of kubernetes object")
-    url: str = Field(None, example="http://localhost:9090", description="The url of prometheus")
     description: Optional[str] = Field(None, example="Kubernetes deployment analysis")
-
-    @classmethod
-    @validator("url")
-    def validate_url(cls, v):
-        if not v.startswith("https://") and not v.startswith("http://"):
-            return False
-        return True
 
     @classmethod
     @validator("name")
     def name_rfc1123(cls, v):
         return regex.match(v) is not None
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class QueryParams:

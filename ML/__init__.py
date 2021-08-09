@@ -4,13 +4,13 @@ warnings.filterwarnings(action='ignore')
 
 import pandas as pd
 from sklearn.ensemble import IsolationForest
-from statsmodels.tsa.arima.model import ARIMA
+
 
 from constants import *
 
 
 def forecasting(data: pd.DataFrame, value_field: str):
-    model = ARIMA(data[value_field], order=(1, 0, 0))
+    model = ARIMA(data, order=(1, 0, 0))
     model_fit = model.fit()
 
     times = pd.date_range(start=data.index[-1], freq=FREQ, periods=FORECAST_STEP + 1, closed="right")
