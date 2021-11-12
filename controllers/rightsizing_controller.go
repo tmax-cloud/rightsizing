@@ -120,7 +120,6 @@ func (r *RightsizingReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 	// Rightsizing status 업데이트
 	rs.Status.PropagateStatus(checkResult, pod)
-	r.Log.Info("Rightsizing status", "status", rs.Status)
 	// 업데이트한 내용 반영하여 실제 상태 업데이트
 	if err := r.updateStatus(rs); err != nil {
 		r.Recorder.Eventf(rs, v1.EventTypeWarning, "InternalError", err.Error())
