@@ -1,0 +1,58 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rightsizing.tmax.io
+  resources:
+  - rightsizings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rightsizing.tmax.io
+  resources:
+  - rightsizings/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - rightsizing.tmax.io
+  resources:
+  - rightsizings/status
+  verbs:
+  - get
+  - patch
+  - update
