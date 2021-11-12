@@ -2,6 +2,7 @@ import asyncio
 import argparse
 from datetime import datetime
 import json
+import os
 
 from fields import *
 from query import instant_query_prometheus, query_pod_prometheus
@@ -16,10 +17,8 @@ args = parser.parse_args()
 url = args.url
 
 
-TOKEN = 'xoxb-2552037846225-2539421227523-se1i73iQQupH5l01X7X3UQkN'
-channel_id = 'C02FSBYFP61'
-# url = "https://console.tmaxcloud.com/api/grafana/api/datasources/proxy/1"
-# url = "http://192.168.9.242:9090"
+TOKEN = os.getenv('token')
+channel_id = os.getenv('channel_id')
 upper_limit = 0.8
 lower_limit = 0.1
 storage_limit = 0.5
