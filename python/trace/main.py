@@ -86,7 +86,7 @@ interval = args.interval
 
 for i in range(10):
     try:
-        r = requests.get(server_url + '/ready', timeout=3)
+        r = requests.get(server_url + FORECAST_ENDPOINT + '/ready', timeout=3)
         if r.ok:
             break
     except:
