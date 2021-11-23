@@ -1,0 +1,151 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.6.1
+  creationTimestamp: null
+  name: rightsizings.rightsizing.tmax.io
+spec:
+  group: rightsizing.tmax.io
+  names:
+    kind: Rightsizing
+    listKind: RightsizingList
+    plural: rightsizings
+    shortNames:
+    - rz
+    singular: rightsizing
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.status
+      name: Status
+      type: string
+    - jsonPath: .spec.optimization
+      name: Optimization
+      type: boolean
+    - jsonPath: .spec.forecast
+      name: Forecast
+      type: boolean
+    - jsonPath: .spec.trace
+      name: Trace
+      type: boolean
+    - jsonPath: .spec.traceCycle
+      name: Trace Cycle
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Rightsizing is the Schema for the rightsizings API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: RightsizingSpec defines the desired state of Rightsizing
+            properties:
+              forecast:
+                default: false
+                type: boolean
+              optimization:
+                default: false
+                type: boolean
+              podName:
+                description: Pod 관련 정보
+                type: string
+              podNamespace:
+                type: string
+              prometheusUri:
+                default: http://prometheus-k8s.monitoring.svc.cluster.local
+                type: string
+              trace:
+                type: boolean
+              traceCycle:
+                type: string
+            required:
+            - podName
+            - podNamespace
+            type: object
+          status:
+            properties:
+              conditions:
+                additionalProperties:
+                  properties:
+                    lastTransitionTime:
+                      format: date-time
+                      type: string
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    state:
+                      type: string
+                    type:
+                      type: string
+                    url:
+                      type: string
+                  required:
+                  - message
+                  - reason
+                  - state
+                  - type
+                  type: object
+                description: 각 service 별 상태 표기
+                type: object
+              results:
+                additionalProperties:
+                  properties:
+                    describe:
+                      type: string
+                    recordedTime:
+                      description: 기록된 시각
+                      format: date-time
+                      type: string
+                    value:
+                      description: 대표 값 표기
+                      properties:
+                        cpu:
+                          type: string
+                        memory:
+                          type: string
+                      required:
+                      - cpu
+                      - memory
+                      type: object
+                  required:
+                  - describe
+                  - recordedTime
+                  - value
+                  type: object
+                description: 각 service 결과 표기
+                type: object
+              status:
+                description: Rightsizing overall status
+                type: string
+            required:
+            - status
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

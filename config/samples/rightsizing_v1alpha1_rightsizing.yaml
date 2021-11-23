@@ -1,0 +1,7 @@
+apiVersion: rightsizing.tmax.io/v1alpha1
+kind: Rightsizing
+metadata:
+  name: rightsizing-sample
+spec:
+  # Add fields here
+  foo: bar
