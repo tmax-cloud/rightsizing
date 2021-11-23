@@ -1,0 +1,24 @@
+# permissions for end users to edit rightsizings.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rightsizing-editor-role
+rules:
+- apiGroups:
+  - rightsizing.tmax.io
+  resources:
+  - rightsizings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rightsizing.tmax.io
+  resources:
+  - rightsizings/status
+  verbs:
+  - get

@@ -1,0 +1,20 @@
+# permissions for end users to view rightsizingrequests.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rightsizingrequest-viewer-role
+rules:
+- apiGroups:
+  - rightsizing.tmax.io
+  resources:
+  - rightsizingrequests
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rightsizing.tmax.io
+  resources:
+  - rightsizingrequests/status
+  verbs:
+  - get

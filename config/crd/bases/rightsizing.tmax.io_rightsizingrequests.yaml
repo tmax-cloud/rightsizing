@@ -1,0 +1,141 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.6.1
+  creationTimestamp: null
+  name: rightsizingrequests.rightsizing.tmax.io
+spec:
+  group: rightsizing.tmax.io
+  names:
+    kind: RightsizingRequest
+    listKind: RightsizingRequestList
+    plural: rightsizingrequests
+    shortNames:
+    - rzreq
+    singular: rightsizingrequest
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.status
+      name: Status
+      type: string
+    - jsonPath: .spec.optimization
+      name: Optimization
+      type: boolean
+    - jsonPath: .spec.forecast
+      name: Forecast
+      type: boolean
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: RightsizingRequest is the Schema for the rightsizingrequests
+          API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              forecast:
+                default: false
+                type: boolean
+              labels:
+                additionalProperties:
+                  type: string
+                type: object
+              optimization:
+                default: false
+                type: boolean
+              prometheusUri:
+                default: http://prometheus-k8s.monitoring.svc.cluster.local
+                type: string
+              query:
+                type: string
+            required:
+            - query
+            type: object
+          status:
+            description: RightsizingRequestStatus defines the observed state of RightsizingRequest
+            properties:
+              conditions:
+                additionalProperties:
+                  properties:
+                    lastTransitionTime:
+                      format: date-time
+                      type: string
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    state:
+                      type: string
+                    type:
+                      type: string
+                    url:
+                      type: string
+                  required:
+                  - message
+                  - reason
+                  - state
+                  - type
+                  type: object
+                description: 각 service 별 상태 표기
+                type: object
+              queryResults:
+                additionalProperties:
+                  properties:
+                    data:
+                      description: 대표 값 표기
+                      properties:
+                        value:
+                          type: string
+                      required:
+                      - value
+                      type: object
+                    describe:
+                      type: string
+                    recordedTime:
+                      description: 기록된 시각
+                      format: date-time
+                      type: string
+                  required:
+                  - data
+                  - describe
+                  - recordedTime
+                  type: object
+                description: 각 service 결과 표기
+                type: object
+              status:
+                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
+                  of cluster Important: Run "make" to regenerate code after modifying
+                  this file'
+                type: string
+            required:
+            - status
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
