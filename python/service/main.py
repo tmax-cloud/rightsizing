@@ -2,6 +2,7 @@ import argparse
 from datetime import datetime
 import json
 import time
+import os
 
 from constants import *
 from forecast import forecasting
@@ -10,6 +11,9 @@ from utils import suppress_stdout_stderr
 
 import requests
 import numpy as np
+
+
+CONTAINER_NAME = os.getenv(CONTAINER_NAME_ENV)
 
 
 def wait_for_server(url):
@@ -31,7 +35,7 @@ parser.add_argument('--optimization', dest="optimization", action='store_true')
 parser.add_argument('--no-optimization', dest="optimization", action='store_false')
 parser.add_argument('--forecast', dest="forecast", action='store_true')
 parser.add_argument('--no-forecast', dest="forecast", action='store_false')
-parser.add_argument('--term', '-t', type=int, default=8, help='query term (days) (7 mean 7 days)')
+parser.add_argument('--term', '-t', type=str, default="8d", help='query term (default 8d, 8days)')
 parser.add_argument('--query', '-q', type=str, required=True)
 args = parser.parse_args()
 
@@ -46,7 +50,7 @@ if server_url.endswith('/'):
 
 
 query = {
-    'query': f'{args.query}[{args.term}d]'
+    'query': f'{args.query}[{args.term}]'
 }
 
 r = requests.get(url, query, timeout=300)
@@ -59,22 +63,24 @@ times = [datetime.fromtimestamp(date) for date in times]
 values = np.array(values, dtype=np.float32)
 
 
-results = dict()
+result = dict()
 if args.optimization:
-    optimization_result = extract_resource_usage(values, 95)
-    result = {'data': optimization_result}
-    results["optimization"] = json.dumps(result).encode('utf-8')
+    optimization_data = extract_resource_usage(values, 95)
+    result['optimization'] = {
+        'data': optimization_data
+    }
 
 if args.forecast:
+    # remove fbprophet log
     with suppress_stdout_stderr():
-        forecast_result = forecasting(times, values)
-        result = {'data': forecast_result}
-        results["forecast"] = json.dumps(result).encode('utf-8')
+        result["forecast"] = forecasting(times, values)
 
 wait_for_server(server_url + '/ready')
 
-for service_name, data in results.items():
-    endpoint = f"{server_url}/{service_name}"
+endpoint = f"{server_url}/{MANAGE_SERVER_ENDPOINT}/{CONTAINER_NAME}"
+
+if result:
+    data = json.dumps(result).encode('utf-8')
     r = requests.put(endpoint, data=data, timeout=10)
     if not r.ok:
         raise Exception('request error')

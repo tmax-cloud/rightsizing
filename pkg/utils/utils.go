@@ -23,39 +23,9 @@ func RemoveItem(slice []string, target string) (result []string) {
 	return
 }
 
-func IsPodReadyCondition(pod *v1.Pod) bool {
-	if pod == nil {
-		return false
-	}
-	for _, condition := range pod.Status.Conditions {
-		if condition.Type == v1.PodReady && condition.Status == v1.ConditionTrue {
-			return true
-		}
-	}
-	return false
-}
-
-func IsPodContainerReady(pod *v1.Pod, containerName string) bool {
-	if pod == nil {
-		return false
-	}
-
-	for _, condition := range pod.Status.ContainerStatuses {
-		if condition.Name == containerName {
-			if condition.Ready {
-				return true
-			}
-			break
-		}
-	}
-	return false
-}
-
-func IsPodContainerSucceeded(pod *v1.Pod, containerName string) bool {
-	for _, status := range pod.Status.ContainerStatuses {
-		if status.Name == containerName {
-			return IsContainerSucceeded(status)
-		}
+func IsContainerWaiting(status v1.ContainerStatus) bool {
+	if status.State.Waiting != nil {
+		return true
 	}
 	return false
 }
@@ -96,4 +66,14 @@ func GetContainerStatus(pod *v1.Pod, containerName string) *v1.ContainerStatus {
 		}
 	}
 	return nil
+}
+
+func ExtractBooleanValue(defaultValue, value *bool) bool {
+	if value != nil {
+		return *value
+	}
+	if defaultValue != nil {
+		return *defaultValue
+	}
+	return false
 }

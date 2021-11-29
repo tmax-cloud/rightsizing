@@ -55,6 +55,7 @@ const (
 // +kubebuilder:rbac:groups=rightsizing.tmax.io,resources=rightsizingrequests/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -121,7 +122,7 @@ func (r *RightsizingRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 		r.Recorder.Eventf(rsreq, v1.EventTypeNormal, "CreatePod", "Successfully create pod")
 	}
 	// Rightsizing status 업데이트
-	rsreq.Status.PropagateStatus(pod)
+	rsreq.Status.PropagateStatus(rsreq, pod)
 	// 업데이트한 내용 반영하여 실제 상태 업데이트
 	if err := r.updateStatus(rsreq); err != nil {
 		r.Recorder.Eventf(rsreq, v1.EventTypeWarning, "InternalError", err.Error())
@@ -130,72 +131,72 @@ func (r *RightsizingRequestReconciler) Reconcile(ctx context.Context, req ctrl.R
 	return ctrl.Result{}, nil
 }
 
-func RightsizingRequestPodTemplate(request *v1alpha1.RightsizingRequest) *v1.Pod {
+func (r *RightsizingRequestReconciler) RightsizingRequestPodTemplate(request *v1alpha1.RightsizingRequest) (*v1.Pod, error) {
 	pod := constants.RightsizingRequestDefaultPodTemplate(request.ObjectMeta)
 
-	url := constants.DefaultPrometheusUri
-	if request.Spec.PrometheusUri != nil {
-		url = *request.Spec.PrometheusUri
-	}
-	// make prometheus query
-	labels := make([]string, 0)
-	for key, value := range request.Spec.Labels {
-		labels = append(labels, fmt.Sprintf(`%s="%s"`, key, value))
-	}
-	query := fmt.Sprintf("%s{%s}", request.Spec.Query, strings.Join(labels, ","))
-	// Create container spec
-	requestContainer := v1.Container{
-		Name:  constants.RequestServiceContainerName,
-		Image: constants.RequestServiceContainerImage,
-		Command: []string{
-			"python",
-			"main.py",
-		},
-		Args: []string{
-			"--url", url,
-			"-q", query,
-			"-server_url", fmt.Sprintf("http://127.0.0.1:%s", constants.RequestServerContainerPort),
-		},
-	}
-	if request.Spec.Forecast != nil {
-		requestContainer.Args = append(requestContainer.Args, "--forecast")
-	}
-	if request.Spec.Optimization != nil {
-		requestContainer.Args = append(requestContainer.Args, "--optimization")
+	config, err := v1alpha1.NewRightsizingRequestConfig(r.Client)
+	if err != nil {
+		return nil, err
 	}
 
-	pod.Spec.Containers = append(pod.Spec.Containers, requestContainer)
-	pod.Spec.Containers = append(pod.Spec.Containers, v1.Container{
-		Name:  constants.RequestServerContainerName,
-		Image: constants.RequestServerContainerImage,
-		Command: []string{
-			"uvicorn",
-			"main:app",
-		},
-		Args: []string{
-			"--reload",
-			"--host", "0.0.0.0",
-			"--port", constants.RequestServerContainerPort,
-		},
-	})
-	return &pod
+	url := config.PrometheusConfig.DefaultPrometheusUri
+	if request.Spec.PrometheusUri != nil && *request.Spec.PrometheusUri != "" {
+		url = *request.Spec.PrometheusUri
+	}
+
+	for i, query := range request.Spec.Queries {
+		containerName := fmt.Sprintf("%s-%d", "query", i)
+		// generate real query
+		labels := make([]string, 0)
+		for key, value := range query.Labels {
+			labels = append(labels, fmt.Sprintf(`%s="%s"`, key, value))
+		}
+		fullQuery := fmt.Sprintf("%s{%s}", query.Query, strings.Join(labels, ","))
+
+		container := v1.Container{
+			Name:  containerName,
+			Image: fmt.Sprintf("%s:%s", config.QueryConfig.ContainerImage, config.QueryConfig.Version),
+			Args: []string{
+				"python", "main.py",
+				"--url", url,
+				"-q", fullQuery,
+				"-server_url", fmt.Sprintf("http://127.0.0.1:%s", constants.ServerContainerPort),
+			},
+			Env: []v1.EnvVar{
+				{
+					Name:  "CONTAINER_NAME",
+					Value: containerName,
+				},
+			},
+		}
+		if doForecast := utils.ExtractBooleanValue(request.Spec.Forecast, query.Forecast); doForecast {
+			container.Args = append(container.Args, "--forecast")
+		}
+		if doOptimization := utils.ExtractBooleanValue(request.Spec.Optimization, query.Optimization); doOptimization {
+			container.Args = append(container.Args, "--optimization")
+		}
+		pod.Spec.Containers = append(pod.Spec.Containers, container)
+	}
+	pod.Spec.Containers = append(pod.Spec.Containers, constants.ServerContainerTemplate())
+	return &pod, nil
 }
 
 func (r *RightsizingRequestReconciler) checkPodExist(request *v1alpha1.RightsizingRequest) (constants.CheckResultType, *v1.Pod, error) {
-	found := &v1.Pod{}
-	pod := RightsizingRequestPodTemplate(request)
-
-	err := r.Get(context.TODO(), types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name}, found)
+	found := constants.RightsizingRequestDefaultPodTemplate(request.ObjectMeta)
 	// 존재하지 않는 경우
-	if err != nil {
+	if err := r.Get(context.TODO(), types.NamespacedName{Namespace: found.Namespace, Name: found.Name}, &found); err != nil {
 		if apierr.IsNotFound(err) {
+			pod, err := r.RightsizingRequestPodTemplate(request)
+			if err != nil {
+				return constants.CheckResultError, nil, err
+			}
 			return constants.CheckResultCreate, pod, nil
 		} else {
-			r.Log.Error(err, "Failed to get pod", "Namespace", pod.Namespace, "Name", pod.Name)
+			r.Log.Error(err, "Failed to get pod", "Namespace", found.Namespace, "Name", found.Name)
 			return constants.CheckResultError, nil, err
 		}
 	}
-	return constants.CheckResultExisted, found, nil
+	return constants.CheckResultExisted, &found, nil
 }
 
 func (r *RightsizingRequestReconciler) updateStatus(desiredObject *v1alpha1.RightsizingRequest) error {
@@ -206,7 +207,7 @@ func (r *RightsizingRequestReconciler) updateStatus(desiredObject *v1alpha1.Righ
 	}
 
 	if !equality.Semantic.DeepEqual(existingObject.Status, desiredObject.Status) {
-		r.Recorder.Eventf(desiredObject, v1.EventTypeNormal, "UpdateStatus", fmt.Sprintf("Update state %s", desiredObject.Status.Status))
+		r.Recorder.Eventf(desiredObject, v1.EventTypeNormal, "UpdateStatus", fmt.Sprintf("Update state [%s]", desiredObject.Status.Status))
 		if err := r.Status().Update(context.TODO(), desiredObject); err != nil {
 			return err
 		}
@@ -215,13 +216,13 @@ func (r *RightsizingRequestReconciler) updateStatus(desiredObject *v1alpha1.Righ
 }
 
 func (r *RightsizingRequestReconciler) deleteResources(request *v1alpha1.RightsizingRequest) error {
-	found := RightsizingRequestPodTemplate(request)
-	err := r.Get(context.TODO(), types.NamespacedName{Namespace: found.Namespace, Name: found.Name}, found)
+	found := constants.RightsizingRequestDefaultPodTemplate(request.ObjectMeta)
+	err := r.Get(context.TODO(), types.NamespacedName{Namespace: found.Namespace, Name: found.Name}, &found)
 	if err != nil {
 		r.Log.Error(err, "Failed to find old pod", "pod", found.Name)
-		return err
+		return nil
 	}
-	if err := r.Delete(context.TODO(), found, client.PropagationPolicy(metav1.DeletePropagationBackground)); client.IgnoreNotFound(err) != nil {
+	if err := r.Delete(context.TODO(), &found, client.PropagationPolicy(metav1.DeletePropagationBackground)); client.IgnoreNotFound(err) != nil {
 		r.Log.Error(err, "Failed to delete pod", "pod", found.Name)
 		return err
 	}

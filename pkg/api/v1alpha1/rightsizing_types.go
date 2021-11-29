@@ -28,7 +28,7 @@ type RightsizingSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	RightsizingService `json:",inline"`
+	QueryParam `json:",inline"`
 	// Pod 관련 정보
 	PodName      string `json:"podName"`
 	PodNamespace string `json:"podNamespace"`

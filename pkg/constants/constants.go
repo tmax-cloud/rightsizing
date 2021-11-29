@@ -8,34 +8,16 @@ import (
 )
 
 const (
-	RightSizingLabelName = "rightsizing-service"
+	RightsizingLabelName = "rightsizing-service"
 )
 
 const (
-	DefaultPrometheusUri = "http://prometheus-k8s.monitoring.svc.cluster.local"
+	RightsizingConfigMapNamespace = "rightsizing-operator-system"
+	RightsizingConfigMapName      = "rightsizing-operator-configmap"
 )
 
 const (
-	OptimizationServiceContainerName  = "optimization"
-	OptimizationServiceContainerImage = "docker.io/dbdydgur2244/rightsizing-optimization"
-	// OptimizationServiceContainerImage = "tmaxcloudck/rightsizing-optimization"
-)
-
-const (
-	ForecastServiceContainerName  = "forecast"
-	ForecastServiceContainerImage = "docker.io/dbdydgur2244/rightsizing-forecast"
-	// ForecastServiceContainerImage = "tmaxcloudck/rightsizing-forecast"
-)
-
-const (
-	RequestServiceContainerName  = "request"
-	RequestServiceContainerImage = "dbdydgur2244/rightsizing-request"
-)
-
-const (
-	RequestServerContainerName  = "server"
-	RequestServerContainerImage = "dbdydgur2244/rightsizing-request-server"
-	RequestServerContainerPort  = "8000"
+	QueryEndpoint = "queries"
 )
 
 const (
@@ -51,54 +33,6 @@ const (
 	CheckResultExisted CheckResultType = 1
 	CheckResultError   CheckResultType = 2
 )
-
-var ServiceContainerList = []string{
-	OptimizationServiceContainerName,
-	ForecastServiceContainerName,
-}
-
-var ServiceList = []string{
-	OptimizationServiceContainerName,
-	ForecastServiceContainerName,
-}
-
-// var ManagerServerContainer = v1.Container{}
-
-func OptimizationContainerTemplate(url, namespace, name string) v1.Container {
-	container := v1.Container{
-		Name:  OptimizationServiceContainerName,
-		Image: OptimizationServiceContainerImage,
-		Command: []string{
-			"python",
-			"main.py",
-		},
-		Args: []string{
-			"-url", url,
-			"-ns", namespace,
-			"-n", name,
-			"-server_url", fmt.Sprintf("http://127.0.0.1:%s", ServerContainerPort),
-		},
-	}
-	return container
-}
-
-func ForecastContainerTemplate(url, namespace, name string) v1.Container {
-	container := v1.Container{
-		Name:  ForecastServiceContainerName,
-		Image: ForecastServiceContainerImage,
-		Command: []string{
-			"python",
-			"main.py",
-		},
-		Args: []string{
-			"-url", url,
-			"-ns", namespace,
-			"-n", name,
-			"-server_url", fmt.Sprintf("http://127.0.0.1:%s", ServerContainerPort),
-		},
-	}
-	return container
-}
 
 func ServerContainerTemplate() v1.Container {
 	return v1.Container{
@@ -130,7 +64,7 @@ func RightsizingDefaultPodTemplate(meta metav1.ObjectMeta) v1.Pod {
 	if pod.ObjectMeta.Labels == nil {
 		pod.ObjectMeta.Labels = make(map[string]string)
 	}
-	pod.ObjectMeta.Labels[RightSizingLabelName] = meta.Name
+	pod.ObjectMeta.Labels[RightsizingLabelName] = meta.Name
 	return pod
 }
 
@@ -148,6 +82,6 @@ func RightsizingRequestDefaultPodTemplate(meta metav1.ObjectMeta) v1.Pod {
 	if pod.ObjectMeta.Labels == nil {
 		pod.ObjectMeta.Labels = make(map[string]string)
 	}
-	pod.ObjectMeta.Labels[RightSizingLabelName] = meta.Name
+	pod.ObjectMeta.Labels[RightsizingLabelName] = meta.Name
 	return pod
 }

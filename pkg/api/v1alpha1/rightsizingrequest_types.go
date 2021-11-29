@@ -23,14 +23,25 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+// spec:
+//  prometheusUri: ""
+//  forecast: true
+//  optmization: true # if user don't set forecast or optimization in query, then use this value.
+//  quries:
+//    - query: "test1"
+//      labels:
+//        pod_name: test1
+//      optimization: true
+//      forecast: true
+//    - query: "test2"
+//      labels:
+//        pod_name: test2
+//      optimization: true # no forecast flag set, then forecast will be true.
 type RightsizingRequestSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-
-	RightsizingService `json:",inline"`
-	Query              string `json:"query" description:"prometheus query (optional)"`
-	// +kubebuilder:validation:Optional
-	Labels map[string]string `json:"labels,omitempty" description:"prometheus labels which are key-value set(e.g pod_name=test)"`
+	QueryParam `json:",inline"`
+	Queries    []PrometheusQuery `json:"queries" description:"prometheus query"`
 }
 
 // +kubebuilder:object:root=true

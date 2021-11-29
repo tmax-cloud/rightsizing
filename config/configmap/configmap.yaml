@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configmap
+  namespace: system
+data:
+  prometheus: |-
+    {
+      "defaultPrometheusUri": "prometheus-k8s.monitoring.svc.cluster.local"
+    }
+  query: |-
+    {
+      "image": "docker.io/dbdydgur2244/rightsizing-request",
+      "defaultImageVersion": "latest",
+      "resourceQuery": {
+        "cpu": "pod:container_cpu_usage:sum",
+        "memory": "pod:container_memory_usage_bytes:sum"
+      }
+    }

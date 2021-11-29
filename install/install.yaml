@@ -65,27 +65,44 @@ spec:
           metadata:
             type: object
           spec:
+            description: 'spec:  prometheusUri: ""  forecast: true  optmization: true
+              # if user don''t set forecast or optimization in query, then use this
+              value.  quries:    - query: "test1"      labels:        pod_name: test1      optimization:
+              true      forecast: true    - query: "test2"      labels:        pod_name:
+              test2      optimization: true # no forecast flag set, then forecast
+              will be true.'
             properties:
               forecast:
                 default: false
                 type: boolean
-              labels:
-                additionalProperties:
-                  type: string
-                type: object
               optimization:
                 default: false
                 type: boolean
               prometheusUri:
                 default: http://prometheus-k8s.monitoring.svc.cluster.local
                 type: string
-              query:
-                type: string
+              queries:
+                items:
+                  properties:
+                    forecast:
+                      type: boolean
+                    labels:
+                      additionalProperties:
+                        type: string
+                      type: object
+                    optimization:
+                      type: boolean
+                    query:
+                      type: string
+                  type: object
+                type: array
             required:
-            - query
+            - queries
             type: object
           status:
-            description: RightsizingRequestStatus defines the observed state of RightsizingRequest
+            description: 'Status struct   status: ?   conditions:   -   results:   -
+              query: ~~     forecast:       value: 1.2424     optimization:       value:
+              123.124 RightsizingRequestStatus defines the observed state of RightsizingRequest'
             properties:
               conditions:
                 additionalProperties:
@@ -95,34 +112,35 @@ spec:
                       type: string
                     message:
                       type: string
+                    query:
+                      type: string
                     reason:
                       type: string
-                    state:
-                      type: string
-                    type:
+                    status:
                       type: string
                     url:
                       type: string
                   required:
-                  - message
-                  - reason
-                  - state
-                  - type
+                  - query
+                  - status
                   type: object
                 description: 각 service 별 상태 표기
                 type: object
-              queryResults:
+              results:
                 additionalProperties:
+                  description: 'Query struct Queries:   queryName1:     forecast:       value:
+                    1.2424     optimization:       value: 123.124'
                   properties:
                     data:
-                      description: 대표 값 표기
+                      description: 대표 값 표기 (float 같은 데이터는 openapi 변환이 안되 string으로
+                        저장)
                       properties:
-                        value:
+                        forecast:
                           type: string
-                      required:
-                      - value
+                        optimization:
+                          type: string
                       type: object
-                    describe:
+                    query:
                       type: string
                     recordedTime:
                       description: 기록된 시각
@@ -130,7 +148,7 @@ spec:
                       type: string
                   required:
                   - data
-                  - describe
+                  - query
                   - recordedTime
                   type: object
                 description: 각 service 결과 표기
@@ -254,46 +272,44 @@ spec:
                       type: string
                     message:
                       type: string
+                    query:
+                      type: string
                     reason:
                       type: string
-                    state:
-                      type: string
-                    type:
+                    status:
                       type: string
                     url:
                       type: string
                   required:
-                  - message
-                  - reason
-                  - state
-                  - type
+                  - query
+                  - status
                   type: object
                 description: 각 service 별 상태 표기
                 type: object
               results:
                 additionalProperties:
+                  description: 'Query struct Queries:   queryName1:     forecast:       value:
+                    1.2424     optimization:       value: 123.124'
                   properties:
-                    describe:
+                    data:
+                      description: 대표 값 표기 (float 같은 데이터는 openapi 변환이 안되 string으로
+                        저장)
+                      properties:
+                        forecast:
+                          type: string
+                        optimization:
+                          type: string
+                      type: object
+                    query:
                       type: string
                     recordedTime:
                       description: 기록된 시각
                       format: date-time
                       type: string
-                    value:
-                      description: 대표 값 표기
-                      properties:
-                        cpu:
-                          type: string
-                        memory:
-                          type: string
-                      required:
-                      - cpu
-                      - memory
-                      type: object
                   required:
-                  - describe
+                  - data
+                  - query
                   - recordedTime
-                  - value
                   type: object
                 description: 각 service 결과 표기
                 type: object
@@ -365,6 +381,14 @@ metadata:
   creationTimestamp: null
   name: rightsizing-operator-manager-role
 rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - ""
   resources:
@@ -508,6 +532,26 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: rightsizing-operator-controller-manager
+  namespace: rightsizing-operator-system
+---
+apiVersion: v1
+data:
+  prometheus: |-
+    {
+      "defaultPrometheusUri": "prometheus-k8s.monitoring.svc.cluster.local"
+    }
+  query: |-
+    {
+      "image": "docker.io/dbdydgur2244/rightsizing-request",
+      "defaultImageVersion": "latest",
+      "resourceQuery": {
+        "cpu": "pod:container_cpu_usage:sum",
+        "memory": "pod:container_memory_usage_bytes:sum"
+      }
+    }
+kind: ConfigMap
+metadata:
+  name: rightsizing-operator-configmap
   namespace: rightsizing-operator-system
 ---
 apiVersion: v1

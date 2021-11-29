@@ -1,0 +1,6 @@
+resources:
+  - trace.yaml
+  - manifests.yaml
+
+configurations:
+  - kustomizeconfig.yaml

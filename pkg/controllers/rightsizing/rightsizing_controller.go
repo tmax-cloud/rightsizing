@@ -54,6 +54,7 @@ type RightsizingReconciler struct {
 // +kubebuilder:rbac:groups=rightsizing.tmax.io,resources=rightsizings/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -118,9 +119,10 @@ func (r *RightsizingReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			return ctrl.Result{}, err
 		}
 		r.Recorder.Eventf(rs, v1.EventTypeNormal, "CreatePod", "Successfully create pod")
+		return ctrl.Result{}, nil
 	}
 	// Rightsizing status 업데이트
-	rs.Status.PropagateStatus(checkResult, pod)
+	rs.Status.PropagateStatus(pod)
 	// 업데이트한 내용 반영하여 실제 상태 업데이트
 	if err := r.updateStatus(rs); err != nil {
 		r.Recorder.Eventf(rs, v1.EventTypeWarning, "InternalError", err.Error())
@@ -129,41 +131,71 @@ func (r *RightsizingReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	return ctrl.Result{}, nil
 }
 
-func RightsizingPodTemplate(service *v1alpha1.Rightsizing) *v1.Pod {
+func (r *RightsizingReconciler) RightsizingPodTemplate(service *v1alpha1.Rightsizing) (*v1.Pod, error) {
 	pod := constants.RightsizingDefaultPodTemplate(service.ObjectMeta)
 
-	url := constants.DefaultPrometheusUri
+	config, err := v1alpha1.NewRightsizngConfig(r.Client)
+	if err != nil {
+		return nil, err
+	}
+
+	url := config.PrometheusConfig.DefaultPrometheusUri
 	if service.Spec.PrometheusUri != nil {
 		url = *service.Spec.PrometheusUri
 	}
-	namespace := service.Spec.PodNamespace
-	name := service.Spec.PodName
 
-	if service.Spec.Forecast != nil {
-		pod.Spec.Containers = append(pod.Spec.Containers, constants.ForecastContainerTemplate(url, namespace, name))
+	defaultTemplate := v1.Container{
+		Image: fmt.Sprintf("%s:%s", config.QueryConfig.ContainerImage, config.QueryConfig.Version),
+		Args: []string{
+			"python", "main.py",
+			"--url", url,
+			"-server_url", fmt.Sprintf("http://127.0.0.1:%s", constants.ServerContainerPort),
+		},
 	}
-	if service.Spec.Optimization != nil {
-		pod.Spec.Containers = append(pod.Spec.Containers, constants.OptimizationContainerTemplate(url, namespace, name))
+	if service.Spec.Forecast != nil && *service.Spec.Forecast {
+		defaultTemplate.Args = append(defaultTemplate.Args, "--forecast")
+
+	}
+	if service.Spec.Optimization != nil && *service.Spec.Optimization {
+		defaultTemplate.Args = append(defaultTemplate.Args, "--optimization")
+	}
+	// generate queries
+	prometheusLabel := fmt.Sprintf(`{pod="%s",namespace="%s"}`, service.Spec.PodName, service.Spec.PodNamespace)
+	resourceQueries := []string{
+		config.QueryConfig.ResourceQueries.CPU + prometheusLabel,
+		config.QueryConfig.ResourceQueries.Memory + prometheusLabel,
+	}
+	// container template
+	for i, resource := range []string{"cpu", "memory"} {
+		// Copy container template
+		container := defaultTemplate.DeepCopy()
+		// Container Configuration
+		container.Name = resource
+		container.Args = append(container.Args, []string{"-q", resourceQueries[i]}...)
+		container.Env = append(container.Env, v1.EnvVar{Name: "CONTAINER_NAME", Value: resource})
+		// Add container
+		pod.Spec.Containers = append(pod.Spec.Containers, *container)
 	}
 	pod.Spec.Containers = append(pod.Spec.Containers, constants.ServerContainerTemplate())
-	return &pod
+	return &pod, nil
 }
 
 func (r *RightsizingReconciler) checkPodExist(service *v1alpha1.Rightsizing) (constants.CheckResultType, *v1.Pod, error) {
-	found := &v1.Pod{}
-	pod := RightsizingPodTemplate(service)
-
-	err := r.Get(context.TODO(), types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name}, found)
+	found := constants.RightsizingDefaultPodTemplate(service.ObjectMeta)
 	// 존재하지 않는 경우
-	if err != nil {
+	if err := r.Get(context.TODO(), types.NamespacedName{Namespace: found.Namespace, Name: found.Name}, &found); err != nil {
 		if apierr.IsNotFound(err) {
+			pod, err := r.RightsizingPodTemplate(service)
+			if err != nil {
+				return constants.CheckResultError, nil, err
+			}
 			return constants.CheckResultCreate, pod, nil
 		} else {
-			r.Log.Error(err, "Failed to get pod", "Namespace", pod.Namespace, "Name", pod.Name)
+			r.Log.Error(err, "Failed to get pod", "Namespace", found.Namespace, "Name", found.Name)
 			return constants.CheckResultError, nil, err
 		}
 	}
-	return constants.CheckResultExisted, found, nil
+	return constants.CheckResultExisted, &found, nil
 }
 
 func (r *RightsizingReconciler) updateStatus(desiredService *v1alpha1.Rightsizing) error {
@@ -174,7 +206,7 @@ func (r *RightsizingReconciler) updateStatus(desiredService *v1alpha1.Rightsizin
 	}
 
 	if !equality.Semantic.DeepEqual(existingService.Status, desiredService.Status) {
-		r.Recorder.Eventf(desiredService, v1.EventTypeNormal, "UpdateStatus", fmt.Sprintf("Update state from %s to %s", existingService.Status.Status, desiredService.Status.Status))
+		r.Recorder.Eventf(desiredService, v1.EventTypeNormal, "UpdateStatus", fmt.Sprintf("Update state [%s]", desiredService.Status.Status))
 		if err := r.Status().Update(context.TODO(), desiredService); err != nil {
 			return err
 		}
@@ -183,13 +215,13 @@ func (r *RightsizingReconciler) updateStatus(desiredService *v1alpha1.Rightsizin
 }
 
 func (r *RightsizingReconciler) deleteResources(service *v1alpha1.Rightsizing) error {
-	found := RightsizingPodTemplate(service)
-	err := r.Get(context.TODO(), types.NamespacedName{Namespace: found.Namespace, Name: found.Name}, found)
+	found := constants.RightsizingDefaultPodTemplate(service.ObjectMeta)
+	err := r.Get(context.TODO(), types.NamespacedName{Namespace: found.Namespace, Name: found.Name}, &found)
 	if err != nil {
 		r.Log.Error(err, "Failed to find old pod", "pod", found.Name)
-		return err
+		return nil
 	}
-	if err := r.Delete(context.TODO(), found, client.PropagationPolicy(metav1.DeletePropagationBackground)); client.IgnoreNotFound(err) != nil {
+	if err := r.Delete(context.TODO(), &found, client.PropagationPolicy(metav1.DeletePropagationBackground)); client.IgnoreNotFound(err) != nil {
 		r.Log.Error(err, "Failed to delete pod", "pod", found.Name)
 		return err
 	}

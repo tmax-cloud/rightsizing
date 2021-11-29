@@ -11,26 +11,35 @@ class ForecastData(BaseModel):
     yhat_upper: List[float] = []
     yhat_lower: List[float] = []
 
-class ForecastSummaryData(BaseModel):
+
+class ForecastSummary(BaseModel):
     ds: datetime.datetime
     yhat: float
     yhat_upper: float
     yhat_lower: float
 
+
 class ForecastRequest(BaseModel):
-    cpu: ForecastData
-    memory: ForecastData
+    data: ForecastData
+
 
 class OptimizationRequest(BaseModel):
-    cpu: float
-    memory: float
+    data: float
+
+
+class Item(BaseModel):
+    forecast: Optional[ForecastData] = None
+    optimization: Optional[OptimizationRequest] = None
+
+
+class QueryData(BaseModel):
+    forecast: Optional[ForecastSummary] = None
+    optimization: Optional[OptimizationRequest] = None
 
 
 app = FastAPI()
 
-app.is_warning = False
-app.forecast = None
-app.optimization = None
+app.data = dict()
 
 
 @app.get("/ready")
@@ -38,61 +47,42 @@ def ready():
     return True
 
 
-@app.put("/alert")
-def alert_signal():
-    app.is_warning = True
+@app.put("/queries/{name}")
+def receive_query_data(name: str, data: Item):
+    app.data[name] = data
 
 
-@app.get("/alert")
-async def send_is_alert():
-    return app.is_warning
-
-
-@app.get("/forecast", response_model=ForecastRequest, status_code=200)
-def send_forecast_data():
-    if not app.forecast:
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    return app.forecast
-
-@app.get("/forecast/summary", response_model=ForecastSummaryData, status_code=200)
-def send_forecast_summary_data():
-    if not app.forecast or len(app.forecast.yhat) < 1:
+@app.get("/queries/{name}/forecast", response_model=ForecastRequest, status_code=200)
+def send_forecast_data(name: str):
+    if name not in app.data or app.data[name].forecast is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     return {
-        'ds': app.forecast.ds[-1],
-        'yhat': app.forecast.yhat[-1],
-        'yhat_upper': app.forecast.yhat_upper[-1],
-        'yhat_lower': app.forecast.yhat_lower[-1]
+        'data': app.data[name].forecast
     }
 
 
-
-@app.put("/forecast")
-async def receive_forecast_data(request: ForecastRequest):
-    app.forecast = request
-
-
-@app.get("/forecast/ready")
-async def forecast_ready():
-    if not app.forecast:
-        return False
-    return True
-
-
-@app.put("/optimization")
-def receive_optimization_data(request: OptimizationRequest):
-    app.optimization = request
-
-
-@app.get("/optimization", response_model=OptimizationRequest, status_code=200)
-def send_optimization_data():
-    if not app.optimization:
+@app.get("/queries/{name}/optimization", response_model=OptimizationRequest, status_code=200)
+def send_optimization_data(name: str):
+    if name not in app.data or app.data[name].optimization is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-    return app.optimization
+    return app.data[name].optimization
 
 
-@app.get("/optimization/ready")
-async def optimization_ready():
-    if not app.optimization:
-        return False
-    return True
+@app.get("/queries/{name}", response_model=QueryData, status_code=200)
+def send_query_data(name: str):
+    if name not in app.data:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    data = QueryData()
+
+    query_result = app.data[name]
+    if query_result.forecast:
+        forecast = query_result.forecast
+        data.forecast = ForecastSummary(
+            ds=forecast.ds[-1],
+            yhat=forecast.yhat[-1],
+            yhat_upper=forecast.yhat_upper[-1],
+            yhat_lower=forecast.yhat_lower[-1])
+    if query_result.optimization:
+        data.optimization = query_result.optimization
+    return data
